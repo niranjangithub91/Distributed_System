@@ -1,0 +1,60 @@
+package db
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"user_entry/model"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+var collections1 *mongo.Collection
+var collections2 *mongo.Collection
+
+func init() {
+	clientoptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.Background(), clientoptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	collections1 = client.Database("Distributed_systems").Collection("Users")
+	collections2 = client.Database("Distributed_systems").Collection("MetaData")
+}
+
+func Add_User(t model.User) bool {
+	insert, err := collections1.InsertOne(context.Background(), t)
+	if err != nil {
+		log.Fatal(err)
+		return false
+	}
+	fmt.Println(insert)
+	return true
+}
+func Find_User(t model.User) bool {
+	curr, err := collections1.Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	for curr.Next(context.Background()) {
+		var a model.User
+		err := curr.Decode(&a)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if t.Name == a.Name && t.Password == a.Password {
+			return true
+		}
+	}
+	return false
+}
+
+func Collection_update(t model.Collection) {
+	insert, err := collections2.InsertOne(context.Background(), t)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(insert)
+}
