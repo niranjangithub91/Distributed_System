@@ -51,4 +51,10 @@ func Data_retreive(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
 	defer file.Close()
+	return
+}
+
+func HealthCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	return
 }
