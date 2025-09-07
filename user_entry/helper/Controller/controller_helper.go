@@ -21,7 +21,8 @@ func Validate_signup(t model.Data) bool {
 	return true
 }
 
-func SendChunk(url string, chunk []byte, filename string, port int, name string) error {
+func SendChunk(url string, chunk []byte, filename string, port int, name string, chunk_num int) error {
+	fmt.Println("Hi")
 	body := bytes.NewReader(chunk)
 	fmt.Println(port)
 	// Create POST request
@@ -35,6 +36,7 @@ func SendChunk(url string, chunk []byte, filename string, port int, name string)
 	req.Header.Set("X-Filename", filename)
 	req.Header.Set("Port-number", strconv.Itoa(port))
 	req.Header.Set("Username", name)
+	req.Header.Set("Chunk_num", strconv.Itoa(chunk_num))
 
 	// Send request
 	client := &http.Client{}
@@ -54,16 +56,24 @@ func SendChunk(url string, chunk []byte, filename string, port int, name string)
 	var q model.Collection
 	q.Name = name
 	q.File_name = filename
+	q.CHunk = chunk_num
+	q.Port = port
 	db.Collection_update(q)
 	return nil
 }
 
 func Send_Chunk_request(url string, file_name string, username string, port int) (error, []byte) {
+	z := db.Collection_retreive_details(file_name, username)
 	var output []byte
-	data := map[string]string{
+	r := z[port]
+	if len(r) == 0 {
+		return nil, output
+	}
+	data := map[string]interface{}{
 		"username":  username,
 		"file_name": file_name,
-		"port":      strconv.Itoa(port),
+		"port":      port,
+		"details":   z[port], // safe for JSON
 	}
 
 	// Convert Go map into JSON
