@@ -11,6 +11,7 @@ import (
 	"time"
 	controller_helper "user_entry/helper/Controller"
 	db "user_entry/helper/Database"
+	faulttolerance "user_entry/helper/Fault_tolerance"
 	"user_entry/model"
 
 	"github.com/dgrijalva/jwt-go"
@@ -126,15 +127,28 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode", http.StatusInternalServerError)
 		return
 	}
-	counter := 3001
-	for _, shard := range shards {
-		p := fmt.Sprintf("http://localhost:%d/data_receive", counter)
+	o := faulttolerance.Health_checker()
+	var t []int
+	for key, value := range o {
+		if value {
+			t = append(t, key)
+		}
+	}
+	fmt.Print(name)
+	length := len(t)
+	counter := 0
+	m1 := make(map[int]int)
+	fmt.Println("Ykjnjkefjre")
+	for n, shard := range shards {
+		r := counter % length
+		p := fmt.Sprintf("http://localhost:%d/data_receive", t[r])
+		m1[n] = t[r]
 		wg.Add(1) // increment first
-
-		go func(p string, shard []byte, c int) {
+		fmt.Println(p)
+		go func(p string, shard []byte, c int, m map[int]int, counter int) {
 			defer wg.Done()
-			controller_helper.SendChunk(p, shard, handler.Filename, c, name)
-		}(p, shard, counter) // pass variables explicitly
+			controller_helper.SendChunk(p, shard, handler.Filename, c, name, counter)
+		}(p, shard, t[r], m1, counter) // pass variables explicitly
 		counter++
 	}
 	wg.Wait()

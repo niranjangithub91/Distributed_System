@@ -15,4 +15,6 @@ type Claims struct {
 type Collection struct {
 	Name      string `json:"username"`
 	File_name string `json:"file_name"`
+	Port      int    `json:"port"`
+	CHunk     int    `json:"chunm number"`
 }
