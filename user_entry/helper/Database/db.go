@@ -61,9 +61,10 @@ func Collection_update(t model.Collection) {
 
 func Collection_retreive_details(filename string, user string) map[int][]int {
 	curr, err := collections2.Find(context.Background(), bson.M{})
-	var j map[int][]int
+	j := make(map[int][]int)
 	if err != nil {
 		log.Fatal(err)
+		return j
 	}
 	for curr.Next(context.Background()) {
 		var a model.Collection
@@ -72,7 +73,7 @@ func Collection_retreive_details(filename string, user string) map[int][]int {
 			log.Fatal(err)
 		}
 		if a.File_name == filename && a.Name == user {
-			j[a.Port] = append(j[a.Port], a.CHunk)
+			j[a.Port] = append(j[a.Port], a.Chunk)
 		}
 	}
 	return j

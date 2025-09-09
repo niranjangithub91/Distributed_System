@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	db "user_entry/helper/Database"
@@ -56,45 +55,61 @@ func SendChunk(url string, chunk []byte, filename string, port int, name string,
 	var q model.Collection
 	q.Name = name
 	q.File_name = filename
-	q.CHunk = chunk_num
+	q.Chunk = chunk_num
 	q.Port = port
 	db.Collection_update(q)
 	return nil
 }
 
-func Send_Chunk_request(url string, file_name string, username string, port int) (error, []byte) {
-	z := db.Collection_retreive_details(file_name, username)
-	var output []byte
+func Send_Chunk_request(url string, file_name string, username string, port int, z map[int][]int) (error, map[int][]byte) {
+	fmt.Println("thfgyrnkldac")
 	r := z[port]
 	if len(r) == 0 {
-		return nil, output
+		return nil, make(map[int][]byte) // return empty initialized map
 	}
+
 	data := map[string]interface{}{
 		"username":  username,
 		"file_name": file_name,
 		"port":      port,
-		"details":   z[port], // safe for JSON
+		"details":   r,
 	}
 
-	// Convert Go map into JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
-		return err, output
+		return fmt.Errorf("error marshaling JSON: %w", err), nil
 	}
 
-	// Send POST request with JSON body
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return err, output
+		return fmt.Errorf("error sending request: %w", err), nil
 	}
 	defer resp.Body.Close()
 
-	q, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-		return err, output
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Println("RAW RESPONSE:", string(body))
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body)), nil
 	}
-	return nil, q
+
+	var chunks [][]byte
+	if err := json.Unmarshal(body, &chunks); err != nil {
+		return fmt.Errorf("error decoding JSON: %w", err), nil
+	}
+
+	u := make(map[int][]byte)
+	counters := 0
+	for _, val := range r {
+		if counters >= len(chunks) {
+			break
+		}
+		u[val] = chunks[counters]
+		fmt.Println("Chunk", counters, "=>", string(chunks[counters]))
+		counters++
+	}
+
+	fmt.Println("qwsdbcjdcbwjhcwjcvewjcvedcvejcve")
+
+	return nil, u
 }
