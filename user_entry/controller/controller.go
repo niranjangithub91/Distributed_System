@@ -156,11 +156,12 @@ func Upload(w http.ResponseWriter, r *http.Request) {
 }
 
 func Download(w http.ResponseWriter, r *http.Request) {
-	var mt sync.Mutex
+	// var mt sync.Mutex
 	var wg sync.WaitGroup
 	var a model.Data
+	var mt sync.Mutex
 	var total = make([][]byte, 3) // since you have 3 servers
-
+	fmt.Println(r.Body)
 	err := json.NewDecoder(r.Body).Decode(&a)
 	if err != nil {
 		http.Error(w, "Invalid decode", http.StatusBadRequest)
@@ -174,20 +175,23 @@ func Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := claims.Data
-
 	// Collect shards from servers
+
+	z := db.Collection_retreive_details(file_name, name)
+
 	for i := 3001; i < 3004; i++ {
 		wg.Add(1)
 		p := fmt.Sprintf("http://localhost:%d/data_retreive", i)
-
-		go func(p string, file_name string, name string, port int, idx int) {
+		go func(p string, file_name string, name string, port int) {
 			defer wg.Done()
-			_, resp := controller_helper.Send_Chunk_request(p, file_name, name, port)
-
+			_, resp := controller_helper.Send_Chunk_request(p, file_name, name, port, z)
 			mt.Lock()
-			total[idx] = resp
+			for key, value := range resp {
+				total[key] = value
+			}
 			mt.Unlock()
-		}(p, file_name, name, i, i-3001)
+
+		}(p, file_name, name, i)
 	}
 	wg.Wait()
 
@@ -206,21 +210,15 @@ func Download(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Join shards back into original file
-	// For Reed-Solomon (2,1), we have 2 data shards and 1 parity shard
-	// The original data size is the sum of the first 2 shards
 	originalSize := len(total[0]) + len(total[1])
 
-	// Create a buffer to hold the reconstructed data
 	buf := make([]byte, originalSize)
 
-	// Copy the data shards back to the buffer
 	copy(buf[:len(total[0])], total[0])
 	copy(buf[len(total[0]):], total[1])
 
 	data := buf
 
-	// Send file back to client
 	w.Header().Set("Content-Disposition", "attachment; filename="+file_name)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(data)
