@@ -175,25 +175,42 @@ func Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := claims.Data
-	// Collect shards from servers
-
-	z := db.Collection_retreive_details(file_name, name)
-
-	for i := 3001; i < 3004; i++ {
+	counter := 0
+	for i := 0; i < 3; i++ {
+		p := fmt.Sprintf("%s_%s_%d", file_name, name, i)
 		wg.Add(1)
-		p := fmt.Sprintf("http://localhost:%d/data_retreive", i)
-		go func(p string, file_name string, name string, port int) {
+		go func(p string) {
 			defer wg.Done()
-			_, resp := controller_helper.Send_Chunk_request(p, file_name, name, port, z)
-			mt.Lock()
-			for key, value := range resp {
-				total[key] = value
+			q := db.Get_cache_mem(p)
+			if q != nil {
+				mt.Lock()
+				total[i] = q
+				counter++
+				mt.Unlock()
 			}
-			mt.Unlock()
-
-		}(p, file_name, name, i)
+		}(p)
 	}
 	wg.Wait()
+
+	if counter < 2 {
+		z := db.Collection_retreive_details(file_name, name)
+
+		for i := 3001; i < 3004; i++ {
+			wg.Add(1)
+			p := fmt.Sprintf("http://localhost:%d/data_retreive", i)
+			go func(p string, file_name string, name string, port int) {
+				defer wg.Done()
+				_, resp := controller_helper.Send_Chunk_request(p, file_name, name, port, z)
+				mt.Lock()
+				for key, value := range resp {
+					total[key] = value
+				}
+				mt.Unlock()
+
+			}(p, file_name, name, i)
+		}
+		wg.Wait()
+	}
 
 	// Reed-Solomon decoder (2 data, 1 parity)
 	enc, err := reedsolomon.New(2, 1)
@@ -209,6 +226,17 @@ func Download(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	for key, value := range total {
+		var wg sync.WaitGroup
+		p := fmt.Sprintf("%s_%s_%d", file_name, name, key)
+		wg.Add(1)
+		go func(p string, x []byte) {
+			defer wg.Done()
+			db.Set_cache_mem(p, x)
+		}(p, value)
+	}
+	wg.Wait()
 
 	originalSize := len(total[0]) + len(total[1])
 
